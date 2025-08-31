@@ -1,8 +1,7 @@
-# A1_response_to_criteria.md
+Assignment 1 - REST API Project - Response to Criteria
 
-> Student: Zhaocheng Dong 
-> ID:  n10051457
-> Unit: CAB432 Cloud Computing, Assessment 1  
+- **Name:** Zhaocheng Dong
+- **Student number:** n10051457
 
 ---
 
