@@ -1,6 +1,7 @@
 # A1_response_to_criteria.md
 
-> Student: **Zhaocheng Dong (n10051457)**  
+> Student: Zhaocheng Dong 
+> ID:  n10051457
 > Unit: CAB432 Cloud Computing, Assessment 1  
 
 ---
