@@ -1,0 +1,27 @@
+{
+  "name": "cab432-a1-video-api",
+  "version": "1.0.0",
+  "description": "CAB432 A01 REST API project \u2013 video transcoding demo (CPU intensive)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "load:test": "node scripts/load_test.js"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-fileupload": "^1.5.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nanoid": "^5.0.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}

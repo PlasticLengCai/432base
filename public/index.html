@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video Transcode Demo (CAB432 A01)</title>
+  <style>
+    html, body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; }
+    header { padding: 12px 16px; background: #111; color: white; }
+    main { padding: 16px; max-width: 980px; margin: 0 auto; }
+    section { margin: 16px 0; padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
+    input, button, select { padding: 6px 10px; margin: 4px 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 12px; }
+    .card { border: 1px solid #eee; border-radius: 8px; padding: 8px; }
+    code { background: #f7f7f7; padding: 2px 4px; border-radius: 4px; }
+
+    /* External results & thumbnails grid */
+    .ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 6px; }
+    .ext-item { border: 1px solid #eee; border-radius: 6px; padding: 6px; }
+    .ext-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 4px; display: block; }
+    .ext-title { font-size: 12px; margin-top: 4px; line-height: 1.2; }
+    .ext-source { font-size: 11px; color: #666; }
+  </style>
+</head>
+<body>
+<header><strong>CAB432 A01</strong> — Video Transcoding API (demo client)</header>
+<main>
+  <section id="login">
+    <h3>1) Login</h3>
+    <p>Use demo users: <code>alice/alice123</code> (user) or <code>bob/bob123</code> (admin)</p>
+    <input id="username" placeholder="username" value="alice">
+    <input id="password" type="password" placeholder="password" value="alice123">
+    <button onclick="login()">Login</button>
+    <div id="whoami"></div>
+  </section>
+
+  <section id="upload" style="display:none;">
+    <h3>2) Upload a video</h3>
+    <input id="title" placeholder="title (optional)"/>
+    <input id="file" type="file" accept="video/*" />
+    <button onclick="upload()">Upload</button>
+  </section>
+
+  <section id="list" style="display:none;">
+    <h3>3) Your files</h3>
+    <div>
+      Search: <input id="q" placeholder="query" oninput="loadFiles(1)">
+      Sort: 
+      <select id="sort" onchange="loadFiles(1)">
+        <option value="uploadedAt">uploadedAt</option>
+        <option value="title">title</option>
+        <option value="size">size</option>
+      </select>
+      Order: 
+      <select id="order" onchange="loadFiles(1)">
+        <option value="desc">desc</option>
+        <option value="asc">asc</option>
+      </select>
+    </div>
+    <div id="files" class="grid"></div>
+  </section>
+</main>
+
+<script>
+let token = null;
+const API = location.origin + '/api';
+
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + token };
+}
+
+async function login() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const resp = await fetch(API + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await resp.json();
+  if (!resp.ok) return alert(data.error || 'login failed');
+  token = data.token;
+  document.getElementById('whoami').textContent = 'Logged in as ' + data.user.username;
+  document.getElementById('upload').style.display = '';
+  document.getElementById('list').style.display = '';
+  loadFiles(1);
+}
+
+async function upload() {
+  const f = document.getElementById('file').files[0];
+  if (!f) return alert('Choose a file');
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('title', document.getElementById('title').value);
+  const resp = await fetch(API + '/upload', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: fd
+  });
+  const data = await resp.json();
+  if (!resp.ok) return alert(data.error || 'upload failed');
+  loadFiles(1);
+}
+
+async function loadFiles(page) {
+  const q = document.getElementById('q').value;
+  const sort = document.getElementById('sort').value;
+  const order = document.getElementById('order').value;
+  const resp = await fetch(API + `/files?page=${page}&q=${encodeURIComponent(q)}&sort=${sort}&order=${order}`, {
+    headers: authHeaders()
+  });
+  const data = await resp.json();
+  const box = document.getElementById('files');
+  box.innerHTML = '';
+  data.items.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div><strong>${v.title}</strong></div>
+      <div><small>${v.originalFilename} (${Math.round(v.size/1024/1024)} MB)</small></div>
+      <div>
+        <button onclick="download('${v.id}', 'original')">Download original</button>
+        <button onclick="transcodeSync('${v.id}')">Transcode 720p (sync)</button>
+        <button onclick="transcodeAsync('${v.id}')">Transcode 720p (async)</button>
+        <button onclick="thumbs('${v.id}')">Generate thumbnails</button>
+        <button onclick="showThumbs('${v.id}')">Show thumbnails</button>
+        <button onclick="yt('${v.title}', '${v.id}')">Related on YouTube</button>
+        <button onclick="tmdb('${v.title}', '${v.id}')">Related on TMDB</button>
+        <button onclick="pixabay('${v.title}', '${v.id}')">Related on Pixabay</button>
+      </div>
+      <div id="out_${v.id}"></div>
+    `;
+    box.appendChild(card);
+  });
+}
+
+async function download(id, variant) {
+  const url = API + `/files/${id}/download?variant=${variant}`;
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank';
+  a.click();
+}
+
+async function transcodeSync(id) {
+  const resp = await fetch(API + '/transcode/sync', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, resolution:'1280x720', format: 'mp4' })
+  });
+  const data = await resp.json();
+  document.getElementById('out_'+id).textContent = JSON.stringify(data);
+}
+
+async function transcodeAsync(id) {
+  const resp = await fetch(API + '/transcode', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, resolution:'1280x720', format: 'mp4' })
+  });
+  const data = await resp.json();
+  document.getElementById('out_'+id).textContent = 'Job ' + data.jobId + ' ' + data.status;
+}
+
+async function thumbs(id) {
+  const resp = await fetch(API + '/thumbnails', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, everyN: 10 })
+  });
+  const data = await resp.json();
+  const out = document.getElementById('out_'+id);
+  if (!resp.ok) out.textContent = data.error || 'Failed to generate thumbnails';
+  else out.textContent = 'Generated in ' + data.dir;
+}
+
+/* ---------- External API & thumbnails rendering ---------- */
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g,(c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function renderResults(outId, items, source) {
+  const box = document.getElementById(outId);
+  if (!box) return;
+  if (!items || !items.length) {
+    box.innerHTML = '<em>No results</em>';
+    return;
+  }
+  const html = `
+    <div class="ext-grid">
+      ${items.map(i => `
+        <div class="ext-item">
+          ${i.thumbnail ? `<img src="${i.thumbnail}" alt="${escapeHtml(i.title||'')}" onerror="this.style.display='none'">` : ''}
+          <div class="ext-title">${escapeHtml(i.title || i.tags || '')}</div>
+          <div class="ext-source">${source}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  box.innerHTML = html;
+}
+
+async function yt(q, vid) {
+  const resp = await fetch(API + '/external/youtube?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const data = await resp.json();
+  if (!resp.ok) return alert(data.error || 'YT error');
+  renderResults('out_' + vid, data.items, 'YouTube');
+}
+
+async function tmdb(q, vid) {
+  const resp = await fetch(API + '/external/tmdb/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const data = await resp.json();
+  if (!resp.ok) return alert(data.error || 'TMDB error');
+  renderResults('out_' + vid, data.items, 'TMDB');
+}
+
+async function pixabay(q, vid) {
+  const resp = await fetch(API + '/external/pixabay/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const data = await resp.json();
+  if (!resp.ok) return alert(data.error || 'Pixabay error');
+  renderResults('out_' + vid, data.items, 'Pixabay');
+}
+
+async function showThumbs(id) {
+  const resp = await fetch(API + `/files/${id}/thumbnails`, { headers: authHeaders() });
+  const data = await resp.json();
+  const out = document.getElementById('out_' + id);
+  if (!resp.ok) {
+    out.innerHTML = `<em>Failed to load thumbnails: ${data.error || 'unknown error'}</em>`;
+    return;
+  }
+  const items = data.items || [];
+  if (!items.length) {
+    out.innerHTML = '<em>No thumbnails</em>';
+    return;
+  }
+  out.innerHTML = `
+    <div class="ext-grid">
+      ${items.map(i => `
+        <div class="ext-item">
+          <img src="${i.url}" alt="${i.file}">
+          <div class="ext-source">${i.file}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
