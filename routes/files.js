@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto'); // replace nanoid
 const { addVideo, listVideos, getVideo, upsertJob, getJob, listJobs } = require('../services/db');
+const { adminOnly } = require('../middleware/auth');
 const { transcodeVideo, extractThumbnails } = require('../services/transcode');
 
 const router = express.Router();
@@ -41,6 +42,14 @@ router.get('/files', (req,res)=>{
   const result = listVideos(filter, { page: parseInt(page), limit: parseInt(limit), sort, order });
   res.json({ ...result, _links: { self: req.originalUrl } });
 });
+router.get('/admin/files', adminOnly, (req, res) => {
+  const { page=1, limit=10, q='', sort='uploadedAt', order='desc' } = req.query;
+  const filter = {};
+  if (q) filter.q = q;
+  const result = listVideos(filter, { page: parseInt(page), limit: parseInt(limit), sort, order });
+  res.json({ ...result, scope: 'all-users', _links: { self: req.originalUrl } });
+});
+
 
 router.get('/files/:id', (req,res)=>{
   const v = getVideo(req.params.id);

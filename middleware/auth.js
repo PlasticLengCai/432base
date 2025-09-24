@@ -11,7 +11,8 @@ if (!COGNITO_REGION || !COGNITO_USER_POOL_ID || !COGNITO_APP_CLIENT_ID) {
   throw new Error('Missing required Cognito envs for JWT verification');
 }
 
-const JWKS_URL = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json`;
+const ISSUER = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`;
+const JWKS_URL = `${ISSUER}/.well-known/jwks.json`;
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
 async function authRequired(req, res, next) {
@@ -24,10 +25,8 @@ async function authRequired(req, res, next) {
 
     const { payload } = await jwtVerify(token, JWKS, {
       algorithms: ['RS256'],
-      // aud 必须是你的 App Client ID
       audience: COGNITO_APP_CLIENT_ID,
-      // iss 必须是你的 UserPool 的 issuer
-      issuer: `https://cognito-idp.${ap-southeast-2}.amazonaws.com/${as2-n12005371}`,
+      issuer: ISSUER,
     });
 
     if (payload.token_use !== 'id') {
@@ -59,4 +58,6 @@ function adminOnly(req, res, next) {
 module.exports = {
   authRequired,
   adminOnly,
+  JWKS_URL,
+  ISSUER,
 };
