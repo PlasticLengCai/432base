@@ -1,38 +1,62 @@
-const jwt = require('jsonwebtoken');
+require('dotenv').config();
+const { createRemoteJWKSet, jwtVerify } = require('jose');
 
-// Hard-coded users (acceptable for A01). In A02 you'll move to a cloud IdP.
-const users = [
-  { id: 'u1', username: 'alice', password: 'alice123', role: 'user' },
-  { id: 'u2', username: 'bob', password: 'bob123', role: 'admin' }
-];
+const {
+  COGNITO_REGION,
+  COGNITO_USER_POOL_ID,
+  COGNITO_APP_CLIENT_ID
+} = process.env;
 
-function login(username, password) {
-  const found = users.find(u => u.username === username && u.password === password);
-  if (!found) return null;
-  const token = jwt.sign(
-    { sub: found.id, username: found.username, role: found.role },
-    process.env.JWT_SECRET || 'dev_secret',
-    { expiresIn: '12h' }
-  );
-  return { token, user: { id: found.id, username: found.username, role: found.role } };
+if (!COGNITO_REGION || !COGNITO_USER_POOL_ID || !COGNITO_APP_CLIENT_ID) {
+  throw new Error('Missing required Cognito envs for JWT verification');
 }
 
-function authRequired(req, res, next) {
-  const header = req.headers.authorization || '';
-  const [, token] = header.split(' ');
-  if (!token) return res.status(401).json({ error: 'Missing Bearer token' });
+const JWKS_URL = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json`;
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
+
+async function authRequired(req, res, next) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev_secret');
-    req.user = payload;
+    const auth = req.headers.authorization || '';
+    if (!auth.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+    }
+    const token = auth.slice('Bearer '.length).trim();
+
+    const { payload } = await jwtVerify(token, JWKS, {
+      algorithms: ['RS256'],
+      // aud 必须是你的 App Client ID
+      audience: COGNITO_APP_CLIENT_ID,
+      // iss 必须是你的 UserPool 的 issuer
+      issuer: `https://cognito-idp.${ap-southeast-2}.amazonaws.com/${as2-n12005371}`,
+    });
+
+    if (payload.token_use !== 'id') {
+      return res.status(401).json({ error: 'Invalid token_use, expected id token' });
+    }
+
+    req.user = {
+      sub: payload.sub,
+      username: payload['cognito:username'],
+      email: payload.email,
+      groups: payload['cognito:groups'] || [],
+      raw: payload
+    };
     next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    console.error('JWT verify failed:', err?.message || err);
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 }
 
 function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const groups = req.user?.groups || [];
+  if (!groups.includes('admin')) {
+    return res.status(403).json({ error: 'Forbidden: admin only' });
+  }
   next();
 }
 
-module.exports = { users, login, authRequired, adminOnly };
+module.exports = {
+  authRequired,
+  adminOnly,
+};

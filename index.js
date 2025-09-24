@@ -16,6 +16,8 @@ const { filesRouter } = require('./routes/files');
 const { externalRouter } = require('./routes/external');
 const { authRequired } = require('./middleware/auth');
 const { ensureDb } = require('./services/db');
+const { initConfig } = require('./services/config');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +44,18 @@ app.use((err, req, res, next)=>{
   console.error('ERROR:', err);
   res.status(500).json({ error: err.message || 'Server error' });
 });
+
+(async () => {
+  try {
+    await initConfig();
+    // 然后启动服务器
+    const app = require('./server'); // 或直接在这里创建/启动
+  } catch (e) {
+    console.error('Failed to init config from SSM/Secrets:', e);
+    process.exit(1);
+  }
+})();
+
 
 // Ensure data dirs & db
 ensureDb();
