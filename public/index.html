@@ -3,146 +3,483 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Video Transcode Demo (CAB432 A01)</title>
+  <title>Video Transcode Demo — Cognito + AWS integrations</title>
   <style>
-    html, body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; }
-    header { padding: 12px 16px; background: #111; color: white; }
-    main { padding: 16px; max-width: 980px; margin: 0 auto; }
-    section { margin: 16px 0; padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
-    input, button, select { padding: 6px 10px; margin: 4px 0; }
+    html, body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
+    header { padding: 16px; background: #0f172a; color: white; }
+    main { padding: 16px; max-width: 1080px; margin: 0 auto; }
+    section { margin: 16px 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08); }
+    h2, h3 { margin-top: 0; }
+    input, button, select { padding: 8px 10px; margin: 4px 0; border-radius: 6px; border: 1px solid #cbd5f5; font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    button.secondary { background: #334155; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 12px; }
-    .card { border: 1px solid #eee; border-radius: 8px; padding: 8px; }
-    code { background: #f7f7f7; padding: 2px 4px; border-radius: 4px; }
-
-    /* External results & thumbnails grid */
+    .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #fff; }
+    .card h4 { margin: 0 0 8px; }
+    .status { margin-top: 6px; font-size: 13px; min-height: 18px; color: #334155; }
+    .status.success { color: #047857; }
+    .status.error { color: #b91c1c; }
+    .status.info { color: #2563eb; }
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-right: 6px; }
+    .tag.success { background: #dcfce7; color: #166534; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.muted { background: #e2e8f0; color: #334155; }
+    .panel { padding: 12px; border: 1px solid #cbd5f5; border-radius: 8px; background: #f8fafc; margin-top: 8px; font-size: 14px; }
+    .flex { display: flex; gap: 8px; flex-wrap: wrap; }
     .ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 6px; }
-    .ext-item { border: 1px solid #eee; border-radius: 6px; padding: 6px; }
+    .ext-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px; background: #fafafa; }
     .ext-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 4px; display: block; }
     .ext-title { font-size: 12px; margin-top: 4px; line-height: 1.2; }
-    .ext-source { font-size: 11px; color: #666; }
+    .ext-source { font-size: 11px; color: #64748b; }
+    .muted { color: #64748b; font-size: 13px; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-<header><strong>CAB432 A01</strong> — Video Transcoding API (demo client)</header>
+<header>
+  <h1>CAB432 Assessment 2 — Video API with Cognito authentication</h1>
+  <p class="muted">Custom domain: <strong>n12005371.cab432.com</strong> → EC2 (Route53 A record)</p>
+</header>
 <main>
-  <section id="login">
-    <h3>1) Login</h3>
-    <p>Use demo users: <code>alice/alice123</code> (user) or <code>bob/bob123</code> (admin)</p>
-    <input id="username" placeholder="username" value="alice">
-    <input id="password" type="password" placeholder="password" value="alice123">
-    <button onclick="login()">Login</button>
-    <div id="whoami"></div>
+  <section id="connection">
+    <h2>1. Connection check & AWS configuration</h2>
+    <p class="muted">The API base URL, external API endpoints (Parameter Store) and API keys / DB credentials (Secrets Manager) are loaded at runtime.</p>
+    <div id="config-status" class="panel">Loading configuration...</div>
+    <div id="jwks-display" class="panel muted"></div>
   </section>
 
-  <section id="upload" style="display:none;">
-    <h3>2) Upload a video</h3>
+  <section id="register">
+    <h2>2. Register a new Cognito user</h2>
+    <div class="flex">
+      <input id="reg-username" placeholder="username" autocomplete="off">
+      <input id="reg-email" placeholder="email" autocomplete="off">
+      <input id="reg-password" type="password" placeholder="password">
+      <button onclick="register()">Register</button>
+    </div>
+    <p class="muted">After registering, check your email for the verification code.</p>
+    <div id="register-status" class="status"></div>
+  </section>
+
+  <section id="confirm">
+    <h2>3. Confirm email</h2>
+    <div class="flex">
+      <input id="confirm-username" placeholder="username" autocomplete="off">
+      <input id="confirm-code" placeholder="verification code" autocomplete="off">
+      <button onclick="confirmEmail()">Confirm email</button>
+    </div>
+    <div id="confirm-status" class="status"></div>
+  </section>
+
+  <section id="login">
+    <h2>4. Sign in</h2>
+    <div class="flex">
+      <input id="login-username" placeholder="username" autocomplete="off">
+      <input id="login-password" type="password" placeholder="password">
+      <button onclick="login()">Login</button>
+    </div>
+    <div id="login-status" class="status"></div>
+    <div id="mfa-panel" class="panel hidden">
+      <strong>MFA required:</strong>
+      <p class="muted" id="mfa-message"></p>
+      <div class="flex">
+        <input id="mfa-code" placeholder="enter MFA code">
+        <button onclick="completeMfa()">Submit code</button>
+      </div>
+      <div id="mfa-status" class="status"></div>
+    </div>
+  </section>
+
+  <section id="account" class="hidden">
+    <h2>5. Session details</h2>
+    <div id="account-details" class="panel"></div>
+    <div class="flex">
+      <button onclick="logout()" class="secondary">Logout</button>
+      <button id="refresh-profile" onclick="refreshProfile()">Refresh profile</button>
+    </div>
+  </section>
+
+  <section id="upload" class="hidden">
+    <h2>6. Upload a video</h2>
     <input id="title" placeholder="title (optional)"/>
     <input id="file" type="file" accept="video/*" />
     <button onclick="upload()">Upload</button>
+    <div id="upload-status" class="status"></div>
   </section>
 
-  <section id="list" style="display:none;">
-    <h3>3) Your files</h3>
-    <div>
-      Search: <input id="q" placeholder="query" oninput="loadFiles(1)">
-      Sort: 
-      <select id="sort" onchange="loadFiles(1)">
-        <option value="uploadedAt">uploadedAt</option>
-        <option value="title">title</option>
-        <option value="size">size</option>
-      </select>
-      Order: 
-      <select id="order" onchange="loadFiles(1)">
-        <option value="desc">desc</option>
-        <option value="asc">asc</option>
-      </select>
+  <section id="list" class="hidden">
+    <h2>7. Your files & operations</h2>
+    <div class="flex">
+      <label>Search <input id="q" placeholder="query" oninput="loadFiles(1)"></label>
+      <label>Sort
+        <select id="sort" onchange="loadFiles(1)">
+          <option value="uploadedAt">uploadedAt</option>
+          <option value="title">title</option>
+          <option value="size">size</option>
+        </select>
+      </label>
+      <label>Order
+        <select id="order" onchange="loadFiles(1)">
+          <option value="desc">desc</option>
+          <option value="asc">asc</option>
+        </select>
+      </label>
     </div>
     <div id="files" class="grid"></div>
+    <div id="admin-tools" class="hidden">
+      <h3>Admin tools</h3>
+      <button id="admin-files-button" onclick="loadAllFiles()">Load all users' videos</button>
+      <div id="admin-files" class="grid" style="margin-top:12px;"></div>
+    </div>
   </section>
 </main>
 
 <script>
-let token = null;
-const API = location.origin + '/api';
+const state = {
+  apiOrigin: window.location.origin,
+  apiBase: '',
+  config: null,
+  token: null,
+  user: null,
+  pendingChallenge: null,
+};
 
-function authHeaders() {
-  return { 'Authorization': 'Bearer ' + token };
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g,(c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function setStatus(id, message, type = 'info') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!message) {
+    el.textContent = '';
+    el.className = 'status';
+    return;
+  }
+  el.textContent = message;
+  el.className = `status ${type}`;
+}
+
+async function initClient() {
+  await loadConfig();
+  await loadJwksInfo();
+}
+
+async function loadConfig() {
+  try {
+    const resp = await fetch('/api/_config');
+    if (resp.ok) {
+      state.config = await resp.json();
+      if (state.config.apiBaseUrl) {
+        state.apiOrigin = state.config.apiBaseUrl.replace(/\/$/, '');
+      }
+    } else {
+      setStatus('config-status', 'Unable to load config: ' + resp.statusText, 'error');
+    }
+  } catch (err) {
+    setStatus('config-status', 'Unable to load config: ' + err.message, 'error');
+  }
+  state.apiBase = state.apiOrigin.replace(/\/$/, '') + '/api';
+  renderConfig();
+}
+
+function renderConfig() {
+  const cfg = state.config || {};
+  const lines = [];
+  lines.push(`<strong>API base:</strong> ${escapeHtml(state.apiOrigin)}`);
+  if (cfg.apiBaseUrl) {
+    lines.push(`<span class="tag success">Parameter Store</span> API_BASE_URL loaded: ${escapeHtml(cfg.apiBaseUrl)}`);
+  } else {
+    lines.push(`<span class="tag warn">Parameter Store</span> API_BASE_URL not set; falling back to origin.`);
+  }
+  if (cfg.externalApis) {
+    const info = [
+      `YouTube → base=${escapeHtml(cfg.externalApis.youtube?.base || 'default')} key=${cfg.externalApis.youtube?.keyPresent ? '✔' : '✖'}`,
+      `TMDB → base=${escapeHtml(cfg.externalApis.tmdb?.base || 'default')} key=${cfg.externalApis.tmdb?.keyPresent ? '✔' : '✖'}`,
+      `Pixabay → base=${escapeHtml(cfg.externalApis.pixabay?.base || 'default')} key=${cfg.externalApis.pixabay?.keyPresent ? '✔' : '✖'}`
+    ];
+    lines.push(`<span class="tag muted">External APIs</span>${escapeHtml(info.join(' | '))}`);
+  }
+  if (cfg.secrets?.databaseConfigured) {
+    lines.push('<span class="tag success">Secrets</span> Database credentials loaded from Secrets Manager.');
+  } else {
+    lines.push('<span class="tag warn">Secrets</span> Database credentials secret missing.');
+  }
+  document.getElementById('config-status').innerHTML = `<ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul>`;
+}
+
+async function loadJwksInfo() {
+  try {
+    const resp = await fetch(state.apiBase + '/auth/jwks-info');
+    if (!resp.ok) throw new Error(resp.statusText);
+    const info = await resp.json();
+    document.getElementById('jwks-display').innerHTML = `
+      <strong>Cognito JWKS:</strong>
+      <div class="muted">Issuer: ${escapeHtml(info.issuer)}</div>
+      <div class="muted">JWKS URI: ${escapeHtml(info.jwksUri)}</div>
+      <div class="muted">App client ID: ${escapeHtml(info.appClientId || '')}</div>
+    `;
+  } catch (err) {
+    document.getElementById('jwks-display').textContent = 'Unable to load JWKS metadata: ' + err.message;
+  }
+}
+
+async function register() {
+  const username = document.getElementById('reg-username').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  if (!username || !email || !password) {
+    return setStatus('register-status', 'username, email and password are required', 'error');
+  }
+  try {
+    const resp = await fetch(state.apiBase + '/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return setStatus('register-status', data.error || 'Registration failed', 'error');
+    setStatus('register-status', 'Registered successfully. Check your email for the code.', 'success');
+  } catch (err) {
+    setStatus('register-status', err.message, 'error');
+  }
+}
+
+async function confirmEmail() {
+  const username = document.getElementById('confirm-username').value.trim();
+  const code = document.getElementById('confirm-code').value.trim();
+  if (!username || !code) {
+    return setStatus('confirm-status', 'username and code are required', 'error');
+  }
+  try {
+    const resp = await fetch(state.apiBase + '/auth/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, code })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return setStatus('confirm-status', data.error || 'Confirmation failed', 'error');
+    setStatus('confirm-status', 'Email confirmed. You can now log in.', 'success');
+  } catch (err) {
+    setStatus('confirm-status', err.message, 'error');
+  }
 }
 
 async function login() {
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
-  const resp = await fetch(API + '/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-  const data = await resp.json();
-  if (!resp.ok) return alert(data.error || 'login failed');
-  token = data.token;
-  document.getElementById('whoami').textContent = 'Logged in as ' + data.user.username;
-  document.getElementById('upload').style.display = '';
-  document.getElementById('list').style.display = '';
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!username || !password) {
+    return setStatus('login-status', 'username and password are required', 'error');
+  }
+  try {
+    const resp = await fetch(state.apiBase + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return setStatus('login-status', data.error || 'Login failed', 'error');
+
+    if (data.challenge) {
+      state.pendingChallenge = data.challenge;
+      document.getElementById('mfa-panel').classList.remove('hidden');
+      document.getElementById('mfa-message').textContent = data.challenge.message || 'Enter the verification code sent to your second factor.';
+      setStatus('login-status', 'Multi-factor challenge issued. Enter your code below.', 'info');
+      return;
+    }
+
+    handleLoginSuccess(data);
+  } catch (err) {
+    setStatus('login-status', err.message, 'error');
+  }
+}
+
+async function completeMfa() {
+  if (!state.pendingChallenge) {
+    return setStatus('mfa-status', 'No pending challenge.', 'error');
+  }
+  const code = document.getElementById('mfa-code').value.trim();
+  if (!code) return setStatus('mfa-status', 'Enter the MFA code.', 'error');
+  try {
+    const resp = await fetch(state.apiBase + '/auth/login/mfa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: state.pendingChallenge.username,
+        code,
+        session: state.pendingChallenge.session,
+        challengeName: state.pendingChallenge.name,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return setStatus('mfa-status', data.error || 'MFA verification failed', 'error');
+    setStatus('mfa-status', 'MFA verification successful.', 'success');
+    handleLoginSuccess(data);
+  } catch (err) {
+    setStatus('mfa-status', err.message, 'error');
+  }
+}
+
+function handleLoginSuccess(data) {
+  state.token = data.token;
+  state.user = data.user;
+  state.pendingChallenge = null;
+  document.getElementById('mfa-panel').classList.add('hidden');
+  document.getElementById('mfa-code').value = '';
+  setStatus('login-status', 'Login successful.', 'success');
+  renderAccount();
+  document.getElementById('upload').classList.remove('hidden');
+  document.getElementById('list').classList.remove('hidden');
   loadFiles(1);
+  if (state.user?.groups?.includes('admin')) {
+    document.getElementById('admin-tools').classList.remove('hidden');
+  } else {
+    document.getElementById('admin-tools').classList.add('hidden');
+  }
+}
+
+function renderAccount() {
+  document.getElementById('account').classList.remove('hidden');
+  const box = document.getElementById('account-details');
+  if (!state.user) {
+    box.textContent = 'Not signed in.';
+    return;
+  }
+  box.innerHTML = `
+    <div><strong>Username:</strong> ${escapeHtml(state.user.username || '')}</div>
+    <div><strong>Email:</strong> ${escapeHtml(state.user.email || '')}</div>
+    <div><strong>Groups:</strong> ${(state.user.groups || []).map(g => `<span class="tag muted">${escapeHtml(g)}</span>`).join(' ') || '<span class="muted">none</span>'}</div>
+    <div class="muted">Token expires at ${escapeHtml(state.user.expiresAt || '')}</div>
+  `;
+}
+
+async function refreshProfile() {
+  if (!state.token) return;
+  try {
+    const resp = await fetch(state.apiBase + '/auth/me', { headers: authHeaders() });
+    if (!resp.ok) throw new Error('Failed to refresh profile');
+    const data = await resp.json();
+    state.user = data.user;
+    renderAccount();
+  } catch (err) {
+    setStatus('login-status', err.message, 'error');
+  }
+}
+
+function logout() {
+  state.token = null;
+  state.user = null;
+  document.getElementById('account').classList.add('hidden');
+  document.getElementById('upload').classList.add('hidden');
+  document.getElementById('list').classList.add('hidden');
+  document.getElementById('admin-tools').classList.add('hidden');
+  document.getElementById('files').innerHTML = '';
+  document.getElementById('admin-files').innerHTML = '';
+  setStatus('login-status', 'Logged out.', 'info');
+}
+
+function authHeaders() {
+  if (!state.token) return {};
+  return { 'Authorization': 'Bearer ' + state.token };
 }
 
 async function upload() {
+  if (!state.token) return setStatus('upload-status', 'Login first.', 'error');
   const f = document.getElementById('file').files[0];
-  if (!f) return alert('Choose a file');
+  if (!f) return setStatus('upload-status', 'Choose a file to upload.', 'error');
   const fd = new FormData();
   fd.append('file', f);
   fd.append('title', document.getElementById('title').value);
-  const resp = await fetch(API + '/upload', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: fd
-  });
-  const data = await resp.json();
-  if (!resp.ok) return alert(data.error || 'upload failed');
-  loadFiles(1);
+  try {
+    const resp = await fetch(state.apiBase + '/upload', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    });
+    const data = await resp.json();
+    if (!resp.ok) return setStatus('upload-status', data.error || 'Upload failed', 'error');
+    setStatus('upload-status', 'Upload complete.', 'success');
+    loadFiles(1);
+  } catch (err) {
+    setStatus('upload-status', err.message, 'error');
+  }
 }
 
 async function loadFiles(page) {
+  if (!state.token) return;
   const q = document.getElementById('q').value;
   const sort = document.getElementById('sort').value;
   const order = document.getElementById('order').value;
-  const resp = await fetch(API + `/files?page=${page}&q=${encodeURIComponent(q)}&sort=${sort}&order=${order}`, {
+  const resp = await fetch(state.apiBase + `/files?page=${page}&q=${encodeURIComponent(q)}&sort=${sort}&order=${order}`, {
     headers: authHeaders()
   });
   const data = await resp.json();
   const box = document.getElementById('files');
   box.innerHTML = '';
-  data.items.forEach(v => {
+  (data.items || []).forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const sizeMb = v.size ? (v.size/1024/1024).toFixed(1) : '0';
+    card.innerHTML = `
+      <h4>${escapeHtml(v.title)}</h4>
+      <div class="muted">${escapeHtml(v.originalFilename)} • ${sizeMb} MB</div>
+      <div class="muted">Uploaded ${escapeHtml(v.uploadedAt)}</div>
+      <div class="flex" style="margin-top:8px;">
+        <button data-action="download">Download</button>
+        <button data-action="transcode-sync">Transcode 720p (sync)</button>
+        <button data-action="transcode-async">Transcode 720p (async)</button>
+      </div>
+      <div class="flex">
+        <button data-action="thumbs">Generate thumbnails</button>
+        <button data-action="show-thumbs">Show thumbnails</button>
+      </div>
+      <div class="flex">
+        <button data-action="yt">Related YouTube</button>
+        <button data-action="tmdb">Related TMDB</button>
+        <button data-action="pixabay">Related Pixabay</button>
+      </div>
+      <div id="out_${v.id}" class="panel" style="margin-top:8px; font-size:13px;"></div>
+    `;
+    card.querySelector('[data-action="download"]').addEventListener('click', () => download(v.id, 'original'));
+    card.querySelector('[data-action="transcode-sync"]').addEventListener('click', () => transcodeSync(v.id));
+    card.querySelector('[data-action="transcode-async"]').addEventListener('click', () => transcodeAsync(v.id));
+    card.querySelector('[data-action="thumbs"]').addEventListener('click', () => thumbs(v.id));
+    card.querySelector('[data-action="show-thumbs"]').addEventListener('click', () => showThumbs(v.id));
+    card.querySelector('[data-action="yt"]').addEventListener('click', () => yt(v.title, v.id));
+    card.querySelector('[data-action="tmdb"]').addEventListener('click', () => tmdb(v.title, v.id));
+    card.querySelector('[data-action="pixabay"]').addEventListener('click', () => pixabay(v.title, v.id));
+    box.appendChild(card);
+  });
+}
+
+async function loadAllFiles() {
+  if (!state.token) return;
+  const resp = await fetch(state.apiBase + '/admin/files', { headers: authHeaders() });
+  const data = await resp.json();
+  const box = document.getElementById('admin-files');
+  box.innerHTML = '';
+  (data.items || []).forEach(v => {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div><strong>${v.title}</strong></div>
-      <div><small>${v.originalFilename} (${Math.round(v.size/1024/1024)} MB)</small></div>
-      <div>
-        <button onclick="download('${v.id}', 'original')">Download original</button>
-        <button onclick="transcodeSync('${v.id}')">Transcode 720p (sync)</button>
-        <button onclick="transcodeAsync('${v.id}')">Transcode 720p (async)</button>
-        <button onclick="thumbs('${v.id}')">Generate thumbnails</button>
-        <button onclick="showThumbs('${v.id}')">Show thumbnails</button>
-        <button onclick="yt('${v.title}', '${v.id}')">Related on YouTube</button>
-        <button onclick="tmdb('${v.title}', '${v.id}')">Related on TMDB</button>
-        <button onclick="pixabay('${v.title}', '${v.id}')">Related on Pixabay</button>
-      </div>
-      <div id="out_${v.id}"></div>
+      <h4>${escapeHtml(v.title)} <span class="tag muted">owner ${escapeHtml(v.owner)}</span></h4>
+      <div class="muted">${escapeHtml(v.originalFilename)}</div>
+      <div class="muted">Uploaded ${escapeHtml(v.uploadedAt)}</div>
     `;
     box.appendChild(card);
   });
 }
 
-async function download(id, variant) {
-  const url = API + `/files/${id}/download?variant=${variant}`;
+function download(id, variant) {
+  const url = state.apiBase + `/files/${id}/download?variant=${variant}`;
   const a = document.createElement('a');
   a.href = url; a.target = '_blank';
   a.click();
 }
 
 async function transcodeSync(id) {
-  const resp = await fetch(API + '/transcode/sync', {
+  const resp = await fetch(state.apiBase + '/transcode/sync', {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, resolution:'1280x720', format: 'mp4' })
@@ -152,7 +489,7 @@ async function transcodeSync(id) {
 }
 
 async function transcodeAsync(id) {
-  const resp = await fetch(API + '/transcode', {
+  const resp = await fetch(state.apiBase + '/transcode', {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, resolution:'1280x720', format: 'mp4' })
@@ -162,7 +499,7 @@ async function transcodeAsync(id) {
 }
 
 async function thumbs(id) {
-  const resp = await fetch(API + '/thumbnails', {
+  const resp = await fetch(state.apiBase + '/thumbnails', {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, everyN: 10 })
@@ -173,10 +510,31 @@ async function thumbs(id) {
   else out.textContent = 'Generated in ' + data.dir;
 }
 
-/* ---------- External API & thumbnails rendering ---------- */
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g,(c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+async function showThumbs(id) {
+  const resp = await fetch(state.apiBase + `/files/${id}/thumbnails`, { headers: authHeaders() });
+  const data = await resp.json();
+  const out = document.getElementById('out_' + id);
+  if (!resp.ok) {
+    out.innerHTML = `<em>Failed to load thumbnails: ${escapeHtml(data.error || 'unknown error')}</em>`;
+    return;
+  }
+  const items = data.items || [];
+  if (!items.length) {
+    out.innerHTML = '<em>No thumbnails</em>';
+    return;
+  }
+  out.innerHTML = `
+    <div class="ext-grid">
+      ${items.map(i => `
+        <div class="ext-item">
+          <img src="${i.url}" alt="${escapeHtml(i.file)}">
+          <div class="ext-source">${escapeHtml(i.file)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
+
 function renderResults(outId, items, source) {
   const box = document.getElementById(outId);
   if (!box) return;
@@ -199,50 +557,27 @@ function renderResults(outId, items, source) {
 }
 
 async function yt(q, vid) {
-  const resp = await fetch(API + '/external/youtube?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const resp = await fetch(state.apiBase + '/external/youtube?q=' + encodeURIComponent(q), { headers: authHeaders() });
   const data = await resp.json();
-  if (!resp.ok) return alert(data.error || 'YT error');
+  if (!resp.ok) return alert(data.error || 'YouTube error');
   renderResults('out_' + vid, data.items, 'YouTube');
 }
 
 async function tmdb(q, vid) {
-  const resp = await fetch(API + '/external/tmdb/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const resp = await fetch(state.apiBase + '/external/tmdb/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
   const data = await resp.json();
   if (!resp.ok) return alert(data.error || 'TMDB error');
   renderResults('out_' + vid, data.items, 'TMDB');
 }
 
 async function pixabay(q, vid) {
-  const resp = await fetch(API + '/external/pixabay/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+  const resp = await fetch(state.apiBase + '/external/pixabay/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
   const data = await resp.json();
   if (!resp.ok) return alert(data.error || 'Pixabay error');
   renderResults('out_' + vid, data.items, 'Pixabay');
 }
 
-async function showThumbs(id) {
-  const resp = await fetch(API + `/files/${id}/thumbnails`, { headers: authHeaders() });
-  const data = await resp.json();
-  const out = document.getElementById('out_' + id);
-  if (!resp.ok) {
-    out.innerHTML = `<em>Failed to load thumbnails: ${data.error || 'unknown error'}</em>`;
-    return;
-  }
-  const items = data.items || [];
-  if (!items.length) {
-    out.innerHTML = '<em>No thumbnails</em>';
-    return;
-  }
-  out.innerHTML = `
-    <div class="ext-grid">
-      ${items.map(i => `
-        <div class="ext-item">
-          <img src="${i.url}" alt="${i.file}">
-          <div class="ext-source">${i.file}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
+document.addEventListener('DOMContentLoaded', initClient);
 </script>
 </body>
 </html>

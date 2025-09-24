@@ -6,7 +6,6 @@
  */
 require('dotenv').config();
 const path = require('path');
-const fs = require('fs');
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -16,8 +15,7 @@ const { filesRouter } = require('./routes/files');
 const { externalRouter } = require('./routes/external');
 const { authRequired } = require('./middleware/auth');
 const { ensureDb } = require('./services/db');
-const { initConfig } = require('./services/config');
-
+const { initConfig, getConfig } = require('./services/config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +31,30 @@ app.use('/public', express.static(path.join(__dirname, 'public')));
 app.get('/', (req,res) => res.redirect('/public/'));
 app.get('/api/_ping', (req,res)=> res.send('pong'));
 app.get('/api/_health', (req,res)=> res.json({ ok: true, time: new Date().toISOString() }));
+app.get('/api/_config', (req, res) => {
+  const cfg = getConfig();
+  const issuer = process.env.COGNITO_REGION && process.env.COGNITO_USER_POOL_ID
+    ? `https://cognito-idp.${process.env.COGNITO_REGION}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}`
+    : null;
+  res.json({
+    apiBaseUrl: cfg.apiBaseUrl || null, // Parameter Store: api base shared with frontend
+    externalApis: {
+      youtube: { base: cfg.ytApiBase || null, keyPresent: Boolean(cfg.ytApiKey) },
+      tmdb: { base: cfg.tmdbApiBase || null, keyPresent: Boolean(cfg.tmdbApiKey || cfg.tmdbV4Token) },
+      pixabay: { base: cfg.pixabayApiBase || null, keyPresent: Boolean(cfg.pixabayApiKey) },
+    },
+    secrets: {
+      databaseConfigured: Boolean(cfg.db),
+    },
+    cognito: issuer ? {
+      region: process.env.COGNITO_REGION,
+      userPoolId: process.env.COGNITO_USER_POOL_ID,
+      appClientId: process.env.COGNITO_APP_CLIENT_ID,
+      issuer,
+      jwksUri: `${issuer}/.well-known/jwks.json`,
+    } : null,
+  });
+});
 
 app.use('/api/auth', authRouter);
 app.use('/api', authRequired, filesRouter);        // protect files endpoints
@@ -48,18 +70,18 @@ app.use((err, req, res, next)=>{
 (async () => {
   try {
     await initConfig();
-    // 然后启动服务器
-    const app = require('./server'); // 或直接在这里创建/启动
   } catch (e) {
     console.error('Failed to init config from SSM/Secrets:', e);
-    process.exit(1);
   }
+
+  ensureDb();
+
+  app.listen(PORT, () => {
+    const cfg = getConfig();
+    const base = cfg.apiBaseUrl ? cfg.apiBaseUrl : `http://localhost:${PORT}`;
+    console.log(`Server listening on ${base}`);
+    if (cfg.apiBaseUrl && cfg.apiBaseUrl !== `http://localhost:${PORT}`) {
+      console.log('Parameter Store API_BASE_URL loaded:', cfg.apiBaseUrl);
+    }
+  });
 })();
-
-
-// Ensure data dirs & db
-ensureDb();
-
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
-});

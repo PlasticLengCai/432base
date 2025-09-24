@@ -1,6 +1,12 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+const { getConfig } = require('../services/config');
+
+function cleanBase(defaultBase, configuredBase) {
+  const base = configuredBase || defaultBase;
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+}
 
 /**
  * External API #1: YouTube Data API v3
@@ -8,12 +14,14 @@ const router = express.Router();
  * GET /api/external/youtube?q=keyword
  */
 router.get('/youtube', async (req, res) => {
-  const key = process.env.YT_API_KEY || '';
+  const cfg = getConfig();
+  const key = process.env.YT_API_KEY || cfg.ytApiKey || '';
   if (!key) return res.status(501).json({ error: 'YT_API_KEY not configured' });
   const { q = '' } = req.query;
 
   try {
-    const resp = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+    const base = cleanBase('https://www.googleapis.com/youtube/v3', cfg.ytApiBase);
+    const resp = await axios.get(`${base}/search`, {
       params: { key, q, part: 'snippet', type: 'video', maxResults: 6 }
     });
     const items = (resp.data.items || []).map(i => ({
@@ -37,14 +45,16 @@ router.get('/youtube', async (req, res) => {
  * GET /api/external/tmdb/search?q=keyword
  */
 router.get('/tmdb/search', async (req, res) => {
-  const v3 = process.env.TMDB_API_KEY || '';
-  const v4 = process.env.TMDB_V4_TOKEN || '';
+  const cfg = getConfig();
+  const v3 = process.env.TMDB_API_KEY || cfg.tmdbApiKey || '';
+  const v4 = process.env.TMDB_V4_TOKEN || cfg.tmdbV4Token || '';
   if (!v3 && !v4) return res.status(501).json({ error: 'TMDB_API_KEY or TMDB_V4_TOKEN not configured' });
 
   const { q = '' } = req.query;
 
   try {
-    const url = 'https://api.themoviedb.org/3/search/movie';
+    const base = cleanBase('https://api.themoviedb.org/3', cfg.tmdbApiBase);
+    const url = `${base}/search/movie`;
     const baseParams = { query: q, include_adult: false, language: 'en-US', page: 1 };
     const params = v4 ? baseParams : { ...baseParams, api_key: v3 };
     const headers = v4 ? { Authorization: `Bearer ${v4}` } : {};
@@ -68,12 +78,14 @@ router.get('/tmdb/search', async (req, res) => {
  * GET /api/external/pixabay/search?q=keyword
  */
 router.get('/pixabay/search', async (req, res) => {
-  const key = process.env.PIXABAY_API_KEY || '';
+  const cfg = getConfig();
+  const key = process.env.PIXABAY_API_KEY || cfg.pixabayApiKey || '';
   if (!key) return res.status(501).json({ error: 'PIXABAY_API_KEY not configured' });
   const { q = '' } = req.query;
 
   try {
-    const resp = await axios.get('https://pixabay.com/api/', {
+    const base = cleanBase('https://pixabay.com/api', cfg.pixabayApiBase);
+    const resp = await axios.get(`${base}/`, {
       params: { key, q, image_type: 'photo', per_page: 6, safesearch: true }
     });
     const items = (resp.data.hits || []).map(h => ({

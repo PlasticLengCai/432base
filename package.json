@@ -10,6 +10,9 @@
     "load:test": "node scripts/load_test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.637.0",
+    "@aws-sdk/client-secrets-manager": "^3.637.0",
+    "@aws-sdk/client-ssm": "^3.637.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
@@ -17,9 +20,9 @@
     "express": "^4.19.2",
     "express-fileupload": "^1.5.1",
     "fluent-ffmpeg": "^2.1.2",
+    "jose": "^5.9.3",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "nanoid": "^5.0.7"
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
