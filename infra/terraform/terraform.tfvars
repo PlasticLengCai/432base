@@ -1,0 +1,15 @@
+region          = "ap-southeast-2"
+route53_zone_id = "Z02680423BHWEVRU2JZDQ"              
+owner_email     = "n12005371@qut.edu.au"
+api_base_url    = "https://n12005371.cab432.com"
+subdomain       = "n12005371"
+ec2_public_ip   = "13.210.165.81"
+param_api_base_url_name="/n12005371/A2/API_BASE_URL"
+param_api_base_url_value="https://n12005371.cab432.com"
+secret_admin_name="n12005371/a2/admin"
+admin_username = "admin"
+admin_password = "Password1@"
+extra_tags = {
+  qut-username = "n12005371@qut.edu.au"
+  purpose      = "assessment-2"
+}

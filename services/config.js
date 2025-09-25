@@ -5,17 +5,7 @@ const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client
 
 const {
   AWS_REGION, 
-  PARAM_API_BASE_URL,
-  PARAM_YT_API_BASE,
-  PARAM_TMDB_API_BASE,
-  PARAM_PIXABAY_API_BASE,
-
-  SECRET_YT_API_KEY,
-  SECRET_TMDB_API_KEY,
-  SECRET_TMDB_V4_TOKEN,
-  SECRET_PIXABAY_API_KEY,
-
-  SECRET_DB_CREDENTIALS
+  secret_admin_name
 } = process.env;
 
 const resolvedRegion = AWS_REGION || process.env.COGNITO_REGION || 'ap-southeast-2';
@@ -65,13 +55,8 @@ async function initConfig() {
   state.tmdbApiBase   = await safe(() => getParam(PARAM_TMDB_API_BASE), `ParameterStore ${PARAM_TMDB_API_BASE}`);
   state.pixabayApiBase = await safe(() => getParam(PARAM_PIXABAY_API_BASE), `ParameterStore ${PARAM_PIXABAY_API_BASE}`);
 
-  // Secrets Manager values hold API keys and database credentials
-  state.ytApiKey     = await safe(() => getSecret(SECRET_YT_API_KEY), `Secret ${SECRET_YT_API_KEY}`);
-  state.tmdbApiKey   = await safe(() => getSecret(SECRET_TMDB_API_KEY), `Secret ${SECRET_TMDB_API_KEY}`);
-  state.tmdbV4Token  = await safe(() => getSecret(SECRET_TMDB_V4_TOKEN), `Secret ${SECRET_TMDB_V4_TOKEN}`);
-  state.pixabayApiKey = await safe(() => getSecret(SECRET_PIXABAY_API_KEY), `Secret ${SECRET_PIXABAY_API_KEY}`);
 
-  const dbSecret = await safe(() => getSecret(SECRET_DB_CREDENTIALS), `Secret ${SECRET_DB_CREDENTIALS}`);
+  const dbSecret = await safe(() => getSecret(secret_admin_name), `Secret ${secret_admin_name}`);
   
 
   if (dbSecret) {
