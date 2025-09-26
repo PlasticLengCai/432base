@@ -49,12 +49,7 @@ async function initConfig() {
     }
   };
 
-  // Parameter Store values power the frontend + external API endpoints
   state.apiBaseUrl    = await safe(() => getParam(PARAM_API_BASE_URL), `ParameterStore ${PARAM_API_BASE_URL}`);
-  state.ytApiBase     = await safe(() => getParam(PARAM_YT_API_BASE), `ParameterStore ${PARAM_YT_API_BASE}`);
-  state.tmdbApiBase   = await safe(() => getParam(PARAM_TMDB_API_BASE), `ParameterStore ${PARAM_TMDB_API_BASE}`);
-  state.pixabayApiBase = await safe(() => getParam(PARAM_PIXABAY_API_BASE), `ParameterStore ${PARAM_PIXABAY_API_BASE}`);
-
 
   const dbSecret = await safe(() => getSecret(secret_admin_name), `Secret ${secret_admin_name}`);
   
